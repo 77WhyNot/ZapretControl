@@ -1,9 +1,9 @@
-"""Константы продукта. Единственное место, где меняются имена и репозитории."""
+﻿"""Константы продукта. Единственное место, где меняются имена и репозитории."""
 
 # --- Продукт -------------------------------------------------------------
 APP_NAME = "Zapret Control"
 APP_ID = "ZapretControl"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.1"
 APP_AUTHOR = "ketamine"
 APP_AUTHOR_FULL = "Ivan Milyaev (ketamine)"
 APP_PUBLISHER = "Ivan Milyaev (ketamine)"
