@@ -136,6 +136,12 @@ class AboutPage(Page):
             ("basil00 / WinDivert",
              "Драйвер перехвата пакетов, на котором всё держится.",
              "https://github.com/basil00/Divert"),
+            ("Flowseal / tg-ws-proxy",
+             "Прокси Telegram через WebSocket — его ядро работает внутри программы (MIT).",
+             "https://github.com/Flowseal/tg-ws-proxy"),
+            ("xbox-dns.ru",
+             "Адреса Smart DNS для Xbox и сервисов с блокировкой по стране.",
+             "https://xbox-dns.ru/"),
         )
         for row, (name, description, url) in enumerate(entries):
             label = QLabel(f'<a href="{url}">{name}</a>')

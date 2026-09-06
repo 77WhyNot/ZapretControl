@@ -11,6 +11,9 @@ Zapret Control распространяется по [собственной л�
 | [zapret-discord-youtube](https://github.com/Flowseal/zapret-discord-youtube) | Стратегии, списки доменов и IP | По условиям проекта Flowseal |
 | [WinDivert](https://github.com/basil00/Divert) (`WinDivert.dll`, `WinDivert64.sys`) | Перехват сетевых пакетов | LGPL v3 / GPL v2 |
 | [Qt](https://www.qt.io/) и [PySide6](https://doc.qt.io/qtforpython/) | Графический интерфейс | LGPL v3 |
+| [tg-ws-proxy](https://github.com/Flowseal/tg-ws-proxy) `1.10.1` | Прокси Telegram через WebSocket; ядро включено в программу целиком (`app/vendor/tgwsproxy`) | **MIT** |
+| [cryptography](https://github.com/pyca/cryptography) | Шифрование AES для прокси Telegram | Apache License 2.0 / BSD |
+| [certifi](https://github.com/certifi/python-certifi) | Корневые сертификаты для проверки TLS | MPL 2.0 |
 | [requests](https://github.com/psf/requests) | Сетевые запросы | Apache License 2.0 |
 | [Python](https://www.python.org/) | Среда выполнения | PSF License |
 | [xbox-dns.ru](https://xbox-dns.ru/) | Адреса Smart DNS для обхода гео-ограничений | Публичный сервис, программа лишь подставляет его адреса |

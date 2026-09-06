@@ -232,6 +232,7 @@ def build_tokens(theme_key: str, accent_key: str) -> dict[str, str]:
     tokens["lane_direct"] = "#7C8AA0" if theme.dark else "#68758A"
     tokens["lane_zapret"] = "#E63862" if theme.dark else "#C41E4A"
     tokens["lane_dns"] = "#22C6D8" if theme.dark else "#0E93A6"
+    tokens["lane_tg"] = "#3BA0E6" if theme.dark else "#1F7FCC"
     # Чужой туннель — намеренно приглушённый: это не наш инструмент,
     # мы им не управляем и только сообщаем, что он поднят.
     tokens["lane_vpn"] = "#8B7BD8" if theme.dark else "#6A57C4"
@@ -241,6 +242,8 @@ def build_tokens(theme_key: str, accent_key: str) -> dict[str, str]:
                                      0.18 if theme.dark else 0.10)
     tokens["lane_dns_soft"] = mix(theme.colors["surface"], tokens["lane_dns"],
                                   0.18 if theme.dark else 0.10)
+    tokens["lane_tg_soft"] = mix(theme.colors["surface"], tokens["lane_tg"],
+                                 0.18 if theme.dark else 0.10)
     tokens["lane_vpn_soft"] = mix(theme.colors["surface"], tokens["lane_vpn"],
                                   0.18 if theme.dark else 0.10)
     return tokens
@@ -362,6 +365,16 @@ QLabel[role="mono"], QPlainTextEdit[role="mono"] {{
 QLabel[lane="direct"] {{ color: {lane_direct}; }}
 QLabel[lane="zapret"] {{ color: {lane_zapret}; }}
 QLabel[lane="dns"] {{ color: {lane_dns}; }}
+QLabel[lane="tg"] {{ color: {lane_tg}; }}
+
+/* ---------- Раскрывающийся раздел ---------- */
+
+QFrame#CollapsibleHeader {{
+    background: {surface};
+    border: 1px solid {border};
+    border-radius: 12px;
+}}
+QFrame#CollapsibleHeader:hover {{ border-color: {border_strong}; background: {surface_alt}; }}
 QLabel[lane="vpn"] {{ color: {lane_vpn}; }}
 QLabel#PageSubtitle {{
     font-size: 13px;

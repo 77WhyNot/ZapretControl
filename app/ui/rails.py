@@ -195,6 +195,7 @@ class RailsBoard(QWidget):
         for key, title, token in (
             ("direct", "Напрямую", "lane_direct"),
             ("zapret", "Zapret", "lane_zapret"),
+            ("tg", "Telegram", "lane_tg"),
             ("dns", "Smart DNS", "lane_dns"),
             ("vpn", "Чужой VPN", "lane_vpn"),
         ):
@@ -207,11 +208,14 @@ class RailsBoard(QWidget):
 
     def update_state(self, zapret_on: bool, zapret_targets: list[str],
                      dns_on: bool, dns_note: str,
-                     tunnels: list[str], direct_note: str) -> None:
+                     tunnels: list[str], direct_note: str,
+                     tg_on: bool = False, tg_note: str = "") -> None:
         self.lanes["direct"].set_active(True)
         self.lanes["direct"].set_chips([direct_note] if direct_note else [])
         self.lanes["zapret"].set_active(zapret_on)
         self.lanes["zapret"].set_chips(zapret_targets)
+        self.lanes["tg"].set_active(tg_on)
+        self.lanes["tg"].set_chips([tg_note] if tg_on and tg_note else [])
         self.lanes["dns"].set_active(dns_on)
         self.lanes["dns"].set_chips([dns_note] if dns_on and dns_note else [])
         # Чужой туннель мы не включаем и не выключаем — только показываем.

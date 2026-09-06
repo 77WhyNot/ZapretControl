@@ -89,6 +89,15 @@ def _selftest() -> int:
     print(f"целей: {len(autotest.load_targets())}")
     print(f"проверок: {len(diagnostics.ALL_CHECKS)}")
 
+    # Прокси Telegram: в собранном виде должны найтись и вшитое ядро, и AES.
+    from app.core import tgws
+
+    tgws.tgws_engine.start()
+    print(f"прокси Telegram: {'ок' if tgws.tgws_engine.is_running() else 'НЕ ЗАПУСТИЛСЯ'}")
+    tgws.tgws_engine.stop()
+    if tgws.tgws_engine.is_running():
+        raise SystemExit("прокси Telegram не остановился")
+
     window = MainWindow()
     for key, title, _ in PAGES:
         window.show_page(key)

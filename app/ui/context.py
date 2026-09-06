@@ -17,6 +17,7 @@ class AppContext(QObject):
     status_changed = Signal(object)
     strategies_changed = Signal()
     tunnels_changed = Signal(object)   # список чужих VPN-туннелей
+    tgws_changed = Signal(object)      # состояние WebSocket-прокси Telegram
     update_available = Signal(str, object)  # 'core' | 'app', UpdateInfo или None
     install_update = Signal(str)       # просьба поставить: 'core' | 'app'
     notify = Signal(str, str)          # текст, вид (ok/warn/error)
@@ -29,6 +30,8 @@ class AppContext(QObject):
         )
         self._status = engine.status()
         self._tunnels: list[str] = []
+        self._tgws = None
+        self._tgws_key: tuple = ()
 
     # --- тема ------------------------------------------------------------
 
@@ -80,6 +83,28 @@ class AppContext(QObject):
             self._tunnels = found
             self.tunnels_changed.emit(list(found))
         return list(found)
+
+    # --- Telegram через WebSocket -----------------------------------------
+
+    @property
+    def tgws_status(self):
+        if self._tgws is None:
+            from app.core.tgws import tgws_engine
+
+            self._tgws = tgws_engine.status()
+        return self._tgws
+
+    def refresh_tgws(self, force: bool = False):
+        from app.core.tgws import tgws_engine
+
+        status = tgws_engine.status()
+        key = (status.running, status.port, status.active, status.websocket,
+               status.fallback, status.error)
+        self._tgws = status
+        if force or key != self._tgws_key:
+            self._tgws_key = key
+            self.tgws_changed.emit(status)
+        return status
 
     # --- стратегии -------------------------------------------------------
 

@@ -39,6 +39,10 @@ DEFAULTS: dict[str, Any] = {
     # Telegram
     "telegram_bypass": False,
     "telegram_mode": "split",
+    # Telegram через WebSocket-прокси (ядро tg-ws-proxy внутри программы)
+    "tg_ws_enabled": False,       # желаемое состояние: поднимать при запуске
+    "tg_ws_port": 1443,
+    "tg_ws_secret": "",           # создаётся один раз, иначе ссылка в Telegram устареет
     # Сосуществование со сторонним VPN (Happ, Hiddify, WireGuard и др.)
     "pause_zapret_with_vpn": True,   # снимать обход, пока поднят чужой туннель
     "zapret_paused_by_vpn": False,   # обход снят нами — вернуть после VPN
