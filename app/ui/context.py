@@ -16,6 +16,9 @@ class AppContext(QObject):
     theme_changed = Signal()
     status_changed = Signal(object)
     strategies_changed = Signal()
+    tunnels_changed = Signal(object)   # список чужих VPN-туннелей
+    update_available = Signal(str, object)  # 'core' | 'app', UpdateInfo или None
+    install_update = Signal(str)       # просьба поставить: 'core' | 'app'
     notify = Signal(str, str)          # текст, вид (ok/warn/error)
     navigate = Signal(str)             # ключ страницы
 
@@ -25,6 +28,7 @@ class AppContext(QObject):
             str(config.get("theme")), str(config.get("accent"))
         )
         self._status = engine.status()
+        self._tunnels: list[str] = []
 
     # --- тема ------------------------------------------------------------
 
@@ -60,6 +64,22 @@ class AppContext(QObject):
             self._status = status
             self.status_changed.emit(status)
         return status
+
+    # --- чужие туннели ---------------------------------------------------
+
+    @property
+    def tunnels(self) -> list[str]:
+        """Названия живых VPN-туннелей: Happ, WireGuard и прочие."""
+        return list(self._tunnels)
+
+    def refresh_tunnels(self, force: bool = False) -> list[str]:
+        from app.core import netadapters
+
+        found = netadapters.tunnel_names()
+        if force or found != self._tunnels:
+            self._tunnels = found
+            self.tunnels_changed.emit(list(found))
+        return list(found)
 
     # --- стратегии -------------------------------------------------------
 

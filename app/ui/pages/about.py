@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QVBoxLayout
+from PySide6.QtWidgets import QWidget, QGridLayout, QHBoxLayout, QLabel, QVBoxLayout
 
 from app.core import paths, strategies
 from app.core.constants import (
-    APP_AUTHOR_FULL,
     APP_NAME,
     APP_REPO,
     APP_VERSION,
@@ -30,8 +29,9 @@ from app.ui.widgets import (
 
 
 class AboutPage(Page):
-    def __init__(self, context: AppContext) -> None:
-        super().__init__(context, "О программе")
+    def __init__(self, context: AppContext,
+                 parent: QWidget | None = None) -> None:
+        super().__init__(context, "О программе", "", parent)
 
         self._build_hero()
         self._build_how()
@@ -64,7 +64,6 @@ class AboutPage(Page):
 
         stats = QHBoxLayout()
         stats.setSpacing(30)
-        stats.addWidget(StatItem("Автор", APP_AUTHOR_FULL))
         stats.addWidget(StatItem("Версия приложения", APP_VERSION))
         stats.addWidget(StatItem("Версия ядра zapret", strategies.local_core_version()))
         stats.addWidget(StatItem(

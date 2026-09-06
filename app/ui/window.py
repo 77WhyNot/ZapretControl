@@ -5,10 +5,20 @@ from __future__ import annotations
 import ctypes
 from ctypes import wintypes
 
-from PySide6.QtCore import QByteArray, QPoint, Qt, QTimer, Signal
+from PySide6.QtCore import (
+    QByteArray,
+    QEasingCurve,
+    QPoint,
+    QRect,
+    QPropertyAnimation,
+    Qt,
+    QTimer,
+    Signal,
+)
 from PySide6.QtGui import QAction, QCursor, QGuiApplication, QIcon
 from PySide6.QtWidgets import (
     QApplication,
+    QGraphicsOpacityEffect,
     QButtonGroup,
     QHBoxLayout,
     QLabel,
@@ -29,6 +39,7 @@ from app.ui import icons
 from app.ui.context import AppContext
 from app.ui.pages.about import AboutPage
 from app.ui.pages.diagnostics import DiagnosticsPage
+from app.ui.pages.dns import DnsPage
 from app.ui.pages.home import HomePage
 from app.ui.pages.lists import ListsPage
 from app.ui.pages.settings import SettingsPage
@@ -66,21 +77,30 @@ class MONITORINFO(ctypes.Structure):
     ]
 
 
-PAGES = (
-    ("home", "Главная", "shield_check"),
-    ("strategies", "Стратегии", "layers"),
-    ("lists", "Списки", "list"),
+# В боковом меню видны только те разделы, куда заходят регулярно.
+# Остальные никуда не делись — они за кнопкой «Ещё».
+PRIMARY_PAGES = (
+    ("home", "Обзор", "shield_check"),
+    ("strategies", "Стратегии", "refresh"),
+    ("dns", "Smart DNS", "bolt"),
+    ("lists", "Списки сайтов", "list"),
     ("diagnostics", "Диагностика", "stethoscope"),
-    ("updates", "Обновления", "download"),
     ("settings", "Настройки", "settings"),
+)
+
+MORE_PAGES = (
+    ("updates", "Обновления", "download"),
     ("about", "О программе", "info"),
 )
+
+PAGES = PRIMARY_PAGES + MORE_PAGES
 
 
 class TitleBar(QWidget):
     minimize_requested = Signal()
     maximize_requested = Signal()
     close_requested = Signal()
+    theme_toggle_requested = Signal()
 
     def __init__(self, context: AppContext, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -110,6 +130,13 @@ class TitleBar(QWidget):
 
         layout.addStretch(1)
 
+        # Светлая или тёмная — в один клик, не заходя в настройки.
+        self.btn_theme = self._window_button("moon", "WinButton")
+        self.btn_theme.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_theme.clicked.connect(self.theme_toggle_requested.emit)
+        layout.addWidget(self.btn_theme)
+        layout.addSpacing(6)
+
         self.btn_min = self._window_button("minimize", "WinButton")
         self.btn_max = self._window_button("maximize", "WinButton")
         self.btn_close = self._window_button("close", "WinClose")
@@ -135,6 +162,14 @@ class TitleBar(QWidget):
         for button in (self.btn_min, self.btn_max, self.btn_close):
             name = str(button.property("iconName"))
             button.setIcon(icons.icon(name, self.context.color("text_dim"), 16))
+        dark = self.context.is_dark
+        self.btn_theme.setProperty("iconName", "sun" if dark else "moon")
+        self.btn_theme.setIcon(icons.icon(
+            "sun" if dark else "moon", self.context.color("text_dim"), 16
+        ))
+        self.btn_theme.setToolTip(
+            "Переключить на светлую тему" if dark else "Переключить на тёмную тему"
+        )
 
     def set_maximized(self, maximized: bool) -> None:
         name = "restore" if maximized else "maximize"
@@ -175,8 +210,9 @@ class NavButton(QPushButton):
 
 
 class MainWindow(QWidget):
-    def __init__(self) -> None:
+    def __init__(self, on_progress=None) -> None:
         super().__init__()
+        self._on_progress = on_progress or (lambda text, value: None)
         self.context = AppContext()
         self._force_quit = False
 
@@ -200,9 +236,9 @@ class MainWindow(QWidget):
         engine.on_state_change = self._engine_changed
 
         self._poll = QTimer(self)
-        self._poll.timeout.connect(lambda: self.context.refresh_status())
+        self._poll.timeout.connect(self._poll_state)
         self._poll.start(2500)
-        QTimer.singleShot(150, lambda: self.context.refresh_status(force=True))
+        QTimer.singleShot(150, lambda: self._poll_state(force=True))
         QTimer.singleShot(2500, self._startup_tasks)
 
         self._restore_geometry()
@@ -226,6 +262,7 @@ class MainWindow(QWidget):
         self.title_bar.minimize_requested.connect(self.showMinimized)
         self.title_bar.maximize_requested.connect(self.toggle_maximize)
         self.title_bar.close_requested.connect(self.close)
+        self.title_bar.theme_toggle_requested.connect(self._toggle_theme)
         root_layout.addWidget(self.title_bar)
 
         body = QWidget(self.root)
@@ -245,12 +282,23 @@ class MainWindow(QWidget):
         self.nav_group.setExclusive(True)
         self.nav_buttons: dict[str, NavButton] = {}
 
+        # Полоска, которая едет к выбранному пункту.
+        self.nav_marker = QWidget(self.sidebar)
+        self.nav_marker.setFixedWidth(3)
+        self.nav_marker.hide()
+        self._marker_animation = QPropertyAnimation(self.nav_marker, b"geometry", self)
+        self._marker_animation.setDuration(220)
+        self._marker_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+
         self.pages = QStackedWidget(body)
         self.pages.setObjectName("Content")
         self.page_widgets: dict[str, QWidget] = {}
 
-        factories = {
+        # Страницы строятся при первом открытии: собирать все десять на старте
+        # долго, и окно успевало показаться недостроенным.
+        self._factories = {
             "home": HomePage,
+            "dns": DnsPage,
             "strategies": StrategiesPage,
             "lists": ListsPage,
             "diagnostics": DiagnosticsPage,
@@ -258,18 +306,20 @@ class MainWindow(QWidget):
             "settings": SettingsPage,
             "about": AboutPage,
         }
-        for key, title, icon_name in PAGES:
-            if key == "settings":
-                sidebar_layout.addStretch(1)
+        for key, title, icon_name in PRIMARY_PAGES:
             button = NavButton(key, title, icon_name, self.context, self.sidebar)
             button.clicked.connect(lambda _=False, k=key: self.show_page(k))
             self.nav_group.addButton(button)
             sidebar_layout.addWidget(button)
             self.nav_buttons[key] = button
 
-            page = factories[key](self.context)
-            self.page_widgets[key] = page
-            self.pages.addWidget(page)
+        sidebar_layout.addStretch(1)
+
+        self.more_button = NavButton("__more__", "Ещё", "settings",
+                                     self.context, self.sidebar)
+        self.more_button.setCheckable(False)
+        self.more_button.clicked.connect(self._show_more_menu)
+        sidebar_layout.addWidget(self.more_button)
 
         body_layout.addWidget(self.sidebar)
         body_layout.addWidget(self.pages, 1)
@@ -282,7 +332,7 @@ class MainWindow(QWidget):
         self.tray.setToolTip(APP_NAME)
         self.tray.activated.connect(self._tray_activated)
 
-        menu = QMenu()
+        menu = QMenu(self)
         self.action_show = QAction("Открыть", self)
         self.action_show.triggered.connect(self.show_normal)
         self.action_toggle = QAction("Запустить обход", self)
@@ -295,19 +345,53 @@ class MainWindow(QWidget):
         menu.addSeparator()
         menu.addAction(action_quit)
         self.tray.setContextMenu(menu)
+        # Иконку ставим до show(): иначе Qt пишет «No Icon set».
+        self.tray.setIcon(self._app_icon())
         self.tray.show()
 
         self.context.status_changed.connect(self._update_tray)
 
     # --- тема ------------------------------------------------------------
 
+    def _toggle_theme(self) -> None:
+        """Кнопка в заголовке: светлая ↔ последняя тёмная."""
+        from app.ui import theme as theme_module
+
+        current = str(config.get("theme"))
+        if self.context.is_dark:
+            if theme_module.THEME_BY_KEY.get(current) and theme_module.THEME_BY_KEY[current].dark:
+                config.set("last_dark_theme", current)
+            config.set("theme", "light")
+        else:
+            wanted = str(config.get("last_dark_theme", "rails"))
+            if wanted not in theme_module.THEME_BY_KEY:
+                wanted = "rails"
+            config.set("theme", wanted)
+        self.apply_theme()
+
     def apply_theme(self) -> None:
+        from app.ui import icons as icon_cache
+
+        # Цвета изменились — кэш нарисованных иконок больше не годится.
+        icon_cache.clear_cache()
+
         qss = self.context.rebuild_theme()
-        application = QApplication.instance()
-        if application is not None:
-            application.setStyleSheet(qss)
+
+        # Стиль вешаем на окно, а не на приложение: QApplication.setStyleSheet
+        # перекрашивает вообще всё дерево и занимает больше секунды, окно —
+        # втрое быстрее. Меню трея для этого сделано дочерним к окну.
+        self.setUpdatesEnabled(False)
+        try:
+            self.setStyleSheet(qss)
+        finally:
+            self.setUpdatesEnabled(True)
         for button in self.nav_buttons.values():
             button.apply_theme()
+        marker = getattr(self, 'nav_marker', None)
+        if marker is not None and marker.isVisible():
+            marker.setStyleSheet(
+                f"background: {self.context.color('accent')}; border-radius: 1px;"
+            )
         self._update_window_icon()
 
     def _update_window_icon(self) -> None:
@@ -323,17 +407,110 @@ class MainWindow(QWidget):
 
     # --- навигация -------------------------------------------------------
 
-    def show_page(self, key: str) -> None:
+    def ensure_page(self, key: str) -> QWidget | None:
+        """Создать страницу, если её ещё нет.
+
+        Родителем сразу назначаем контейнер страниц: виджет без родителя Qt
+        считает окном и успевает мигнуть им на экране при первом открытии.
+        """
         widget = self.page_widgets.get(key)
+        if widget is not None:
+            return widget
+        factory = self._factories.get(key)
+        if factory is None:
+            return None
+        widget = factory(self.context, self.pages)
+        widget.hide()
+        self.page_widgets[key] = widget
+        self.pages.addWidget(widget)
+        return widget
+
+    def build_all_pages(self) -> None:
+        """Собрать все страницы заранее — под заставкой, а не при первом клике."""
+        total = len(PAGES)
+        for index, (key, title, _icon) in enumerate(PAGES, start=1):
+            self._on_progress(f"Готовим «{title}»…", 0.45 + 0.5 * index / total)
+            self.ensure_page(key)
+
+    def show_page(self, key: str) -> None:
+        widget = self.ensure_page(key)
         if widget is None:
             return
+        changed = self.pages.currentWidget() is not widget
         self.pages.setCurrentWidget(widget)
+        if changed:
+            self._fade_in(widget)
+        # Группа исключающая: снять галочку со всех она не даёт, и при
+        # переходе в раздел из «Ещё» прошлый пункт оставался подсвеченным.
+        self.nav_group.setExclusive(False)
         for nav_key, button in self.nav_buttons.items():
             button.setChecked(nav_key == key)
             button.apply_theme()
+        self.nav_group.setExclusive(True)
+
+        # Раздел из «Ещё» подсвечиваем самой кнопкой «Ещё».
+        more_keys = {item[0] for item in MORE_PAGES}
+        more = getattr(self, "more_button", None)
+        if more is not None:
+            title = dict((k, t) for k, t, _ in MORE_PAGES).get(key)
+            more.setText(title or "Ещё")
+            more.setChecked(key in more_keys)
+            more.apply_theme()
+        self._move_marker(key)
         activate = getattr(widget, "on_activate", None)
         if callable(activate):
             activate()
+
+    def _show_more_menu(self) -> None:
+        """Разделы, которыми пользуются редко, — по кнопке «Ещё»."""
+        menu = QMenu(self)
+        for key, title, icon_name in MORE_PAGES:
+            action = QAction(
+                icons.icon(icon_name, self.context.color("text_dim"), 16), title, menu
+            )
+            action.triggered.connect(lambda _=False, k=key: self.show_page(k))
+            menu.addAction(action)
+        button = self.more_button
+        menu.exec(button.mapToGlobal(button.rect().topRight()))
+
+    def _move_marker(self, key: str) -> None:
+        """Подвинуть полоску к выбранному пункту меню."""
+        button = self.nav_buttons.get(key)
+        if button is None:
+            button = getattr(self, "more_button", None)
+            if button is None or not button.isChecked():
+                marker = getattr(self, "nav_marker", None)
+                if marker is not None:
+                    marker.hide()
+                return
+        target = QRect(2, button.y() + 8, 3, max(button.height() - 16, 8))
+        self.nav_marker.setStyleSheet(
+            f"background: {self.context.color('accent')}; border-radius: 1px;"
+        )
+        if not self.nav_marker.isVisible():
+            self.nav_marker.setGeometry(target)
+            self.nav_marker.show()
+            self.nav_marker.raise_()
+            return
+        self._marker_animation.stop()
+        self._marker_animation.setStartValue(self.nav_marker.geometry())
+        self._marker_animation.setEndValue(target)
+        self._marker_animation.start()
+        self.nav_marker.raise_()
+
+    def _fade_in(self, widget: QWidget) -> None:
+        """Короткое проявление страницы вместо резкой подмены."""
+        effect = QGraphicsOpacityEffect(widget)
+        widget.setGraphicsEffect(effect)
+        animation = QPropertyAnimation(effect, b"opacity", widget)
+        animation.setDuration(140)
+        animation.setStartValue(0.0)
+        animation.setEndValue(1.0)
+        animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        # Эффект снимаем сразу после показа: он рисует виджет через буфер
+        # и без нужды замедляет прокрутку.
+        animation.finished.connect(lambda: widget.setGraphicsEffect(None))
+        animation.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
 
     # --- окно ------------------------------------------------------------
 
@@ -439,7 +616,7 @@ class MainWindow(QWidget):
         self.activateWindow()
 
     def _tray_toggle(self) -> None:
-        home = self.page_widgets.get("home")
+        home = self.ensure_page("home")
         toggle = getattr(home, "toggle_bypass", None)
         if callable(toggle):
             toggle()
@@ -452,8 +629,47 @@ class MainWindow(QWidget):
             self.action_toggle.setText("Запустить обход")
             self.tray.setToolTip(f"{APP_NAME} — обход выключен")
 
+    def _poll_state(self, force: bool = False) -> None:
+        self.context.refresh_status(force=force)
+        before = self.context.tunnels
+        after = self.context.refresh_tunnels(force=force)
+        if after != before:
+            self._tunnel_changed(before, after)
+
+    def _tunnel_changed(self, before: list[str], after: list[str]) -> None:
+        """Чужой VPN подняли или опустили — подстроиться, не мешая ему.
+
+        Через туннель трафик и так идёт в обход, а winws продолжает резать
+        пакеты уже на входе в туннель, и клиент получает их искажёнными.
+        Поэтому на время чужого VPN обход снимаем, а после — возвращаем.
+        """
+        if not config.get("pause_zapret_with_vpn", True):
+            return
+
+        if after and not before:
+            if not self.context.status.running:
+                return
+            config.set("zapret_paused_by_vpn", True)
+            names = ", ".join(after)
+            self._show_toast(
+                f"Обнаружен VPN ({names}) — обход снят, чтобы не мешать. "
+                "Верну сам, когда выключите VPN.", "warn"
+            )
+            QTimer.singleShot(0, lambda: self._auto_toggle(False))
+        elif before and not after and config.get("zapret_paused_by_vpn", False):
+            config.set("zapret_paused_by_vpn", False)
+            self._show_toast("VPN выключен — возвращаю обход.", "ok")
+            QTimer.singleShot(600, lambda: self._auto_toggle(True))
+
+    def _auto_toggle(self, start: bool) -> None:
+        """Включить или выключить обход тем же путём, что и кнопка на странице."""
+        home = self.ensure_page("home")
+        method = getattr(home, "start_bypass" if start else "stop_bypass", None)
+        if callable(method):
+            method()
+
     def _engine_changed(self) -> None:
-        QTimer.singleShot(0, lambda: self.context.refresh_status(force=True))
+        QTimer.singleShot(0, lambda: self._poll_state(force=True))
 
     # --- уведомления -----------------------------------------------------
 
@@ -463,13 +679,13 @@ class MainWindow(QWidget):
     # --- запуск и завершение ---------------------------------------------
 
     def _startup_tasks(self) -> None:
-        updates_page = self.page_widgets.get("updates")
+        updates_page = self.ensure_page("updates")
         if config.get("check_core_updates", True) and updater.is_check_due():
             checker = getattr(updates_page, "check_silently", None)
             if callable(checker):
                 checker()
         if config.get("autorun_last_strategy", False) and not self.context.status.running:
-            home = self.page_widgets.get("home")
+            home = self.ensure_page("home")
             starter = getattr(home, "start_bypass", None)
             if callable(starter):
                 starter()

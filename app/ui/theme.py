@@ -21,6 +21,28 @@ class ThemeDef:
 
 
 THEMES: tuple[ThemeDef, ...] = (
+    ThemeDef("rails", "Рельсы", True, {
+        "bg": "#0E1219",
+        "surface": "#121821",
+        "surface_alt": "#161E29",
+        "sidebar": "#0B0F15",
+        "titlebar": "#0B0F15",
+        "border": "#1E2733",
+        "border_strong": "#2A3441",
+        "text": "#DCE3ED",
+        "text_dim": "#8593A6",
+        "text_faint": "#5E6B7D",
+        "hover": "#16202C",
+        "input": "#0D131B",
+        "code_bg": "#090D13",
+        "success": "#3FD08A",
+        "warning": "#E9A23B",
+        "danger": "#E0284F",
+        "success_bg": "#0F2A20",
+        "warning_bg": "#2A2314",
+        "danger_bg": "#2A121C",
+        "scroll": "#2A3441",
+    }),
     ThemeDef("light", "Светлая", False, {
         "bg": "#F3F5F8",
         "surface": "#FFFFFF",
@@ -125,12 +147,13 @@ class AccentDef:
 
 
 ACCENTS: tuple[AccentDef, ...] = (
-    AccentDef("ruby", "Рубин", "#C41E4A", "#D82B58", "#A4173C"),
+    AccentDef("ruby", "Рубин", "#D42250", "#E63862", "#B01840"),
+    AccentDef("cyan", "Бирюза", "#22C6D8", "#3AD6E6", "#17A6B6", "#04131A"),
     AccentDef("amber", "Янтарь", "#CF7211", "#E28320", "#AC5D0B"),
     AccentDef("emerald", "Изумруд", "#0E9F6E", "#16B27D", "#0A8159"),
     AccentDef("sapphire", "Сапфир", "#2563EB", "#3B76F0", "#1D4FC4"),
     AccentDef("violet", "Аметист", "#7C3AED", "#8C4FF2", "#672FC7"),
-    AccentDef("teal", "Бирюза", "#0D8E93", "#12A2A8", "#0A7276"),
+    AccentDef("teal", "Морская волна", "#0D8E93", "#12A2A8", "#0A7276"),
     AccentDef("graphite", "Графит", "#4A5567", "#5A6678", "#3A4353"),
 )
 
@@ -203,7 +226,30 @@ def build_tokens(theme_key: str, accent_key: str) -> dict[str, str]:
     tokens["accent_border"] = mix(theme.colors["border"], accent.base, 0.45)
     tokens["accent_text"] = accent.hover if theme.dark else accent.press
     tokens["overlay"] = rgba("#000000", 0.45 if theme.dark else 0.28)
+
+    # Цвета маршрутов — это не украшение, а способ читать состояние:
+    # один и тот же цвет означает один и тот же путь трафика во всей программе.
+    tokens["lane_direct"] = "#7C8AA0" if theme.dark else "#68758A"
+    tokens["lane_zapret"] = "#E63862" if theme.dark else "#C41E4A"
+    tokens["lane_dns"] = "#22C6D8" if theme.dark else "#0E93A6"
+    # Чужой туннель — намеренно приглушённый: это не наш инструмент,
+    # мы им не управляем и только сообщаем, что он поднят.
+    tokens["lane_vpn"] = "#8B7BD8" if theme.dark else "#6A57C4"
+    tokens["lane_direct_soft"] = mix(theme.colors["surface"], tokens["lane_direct"],
+                                     0.18 if theme.dark else 0.12)
+    tokens["lane_zapret_soft"] = mix(theme.colors["surface"], tokens["lane_zapret"],
+                                     0.18 if theme.dark else 0.10)
+    tokens["lane_dns_soft"] = mix(theme.colors["surface"], tokens["lane_dns"],
+                                  0.18 if theme.dark else 0.10)
+    tokens["lane_vpn_soft"] = mix(theme.colors["surface"], tokens["lane_vpn"],
+                                  0.18 if theme.dark else 0.10)
     return tokens
+
+
+# Шрифты: Bahnschrift — это DIN, дорожный указатель. Для программы про
+# маршруты трафика он к месту и есть в Windows 10 и 11 из коробки.
+DISPLAY_FONT = '"Bahnschrift", "Franklin Gothic Medium", "Segoe UI", sans-serif'
+MONO_FONT = '"Cascadia Mono", "Consolas", monospace'
 
 
 # =========================================================================
@@ -297,10 +343,26 @@ QScrollArea {{ background: transparent; border: none; }}
 QScrollArea > QWidget > QWidget {{ background: transparent; }}
 
 QLabel#PageTitle {{
-    font-size: 21px;
-    font-weight: 650;
+    font-family: "Bahnschrift", "Franklin Gothic Medium", "Segoe UI", sans-serif;
+    font-size: 25px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
     color: {text};
 }}
+
+QLabel[role="display"] {{
+    font-family: "Bahnschrift", "Franklin Gothic Medium", "Segoe UI", sans-serif;
+    font-weight: 600;
+}}
+
+QLabel[role="mono"], QPlainTextEdit[role="mono"] {{
+    font-family: "Cascadia Mono", "Consolas", monospace;
+}}
+
+QLabel[lane="direct"] {{ color: {lane_direct}; }}
+QLabel[lane="zapret"] {{ color: {lane_zapret}; }}
+QLabel[lane="dns"] {{ color: {lane_dns}; }}
+QLabel[lane="vpn"] {{ color: {lane_vpn}; }}
 QLabel#PageSubtitle {{
     font-size: 13px;
     color: {text_dim};

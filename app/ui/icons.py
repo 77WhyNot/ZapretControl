@@ -16,6 +16,12 @@ _STROKE = (
 )
 
 PATHS: dict[str, str] = {
+    "sun": (
+        '<circle cx="12" cy="12" r="4" {s}/>'
+        '<path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4'
+        'M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" {s}/>'
+    ),
+    "moon": '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" {s}/>',
     "shield": '<path d="M12 3l7 3v5.5c0 4.3-2.9 7.9-7 9.5-4.1-1.6-7-5.2-7-9.5V6l7-3z" {s}/>',
     "shield_check": (
         '<path d="M12 3l7 3v5.5c0 4.3-2.9 7.9-7 9.5-4.1-1.6-7-5.2-7-9.5V6l7-3z" {s}/>'
@@ -112,8 +118,17 @@ def svg_markup(name: str, color: str) -> str:
     )
 
 
+_pixmap_cache: dict[tuple, QPixmap] = {}
+_icon_cache: dict[tuple, QIcon] = {}
+
+
 def pixmap(name: str, color: str, size: int = 20,
            ratio: float = 1.0) -> QPixmap:
+    key = (name, color, size, round(ratio, 2))
+    cached = _pixmap_cache.get(key)
+    if cached is not None:
+        return cached
+
     physical = int(size * ratio)
     image = QPixmap(physical, physical)
     image.setDevicePixelRatio(ratio)
@@ -123,14 +138,30 @@ def pixmap(name: str, color: str, size: int = 20,
     painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
     renderer.render(painter)
     painter.end()
+    _pixmap_cache[key] = image
     return image
 
 
 def icon(name: str, color: str, size: int = 20) -> QIcon:
-    """Рисуем с запасом по разрешению — Qt сгладит при уменьшении."""
+    """Рисуем с запасом по разрешению — Qt сгладит при уменьшении.
+
+    Результат кэшируется: без этого смена темы перерисовывала каждую иконку
+    заново и занимала полторы секунды.
+    """
+    key = (name, color, size)
+    cached = _icon_cache.get(key)
+    if cached is not None:
+        return cached
     oversized = pixmap(name, color, size * 3)
     oversized.setDevicePixelRatio(1.0)
-    return QIcon(oversized)
+    result = QIcon(oversized)
+    _icon_cache[key] = result
+    return result
+
+
+def clear_cache() -> None:
+    _pixmap_cache.clear()
+    _icon_cache.clear()
 
 
 def icon_size(size: int) -> QSize:

@@ -13,6 +13,8 @@ Zapret Control распространяется по [собственной л�
 | [Qt](https://www.qt.io/) и [PySide6](https://doc.qt.io/qtforpython/) | Графический интерфейс | LGPL v3 |
 | [requests](https://github.com/psf/requests) | Сетевые запросы | Apache License 2.0 |
 | [Python](https://www.python.org/) | Среда выполнения | PSF License |
+| [xbox-dns.ru](https://xbox-dns.ru/) | Адреса Smart DNS для обхода гео-ограничений | Публичный сервис, программа лишь подставляет его адреса |
+| [core.telegram.org/resources/cidr.txt](https://core.telegram.org/resources/cidr.txt) | Официальный список подсетей Telegram для обхода MTProto | Публичные данные Telegram |
 
 ## Что это значит на практике
 

@@ -27,6 +27,7 @@ advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 shell32 = ctypes.WinDLL("shell32", use_last_error=True)
 iphlpapi = ctypes.WinDLL("iphlpapi", use_last_error=True)
+user32 = ctypes.WinDLL("user32", use_last_error=True)
 
 
 # =========================================================================
@@ -116,6 +117,10 @@ kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
 kernel32.OpenProcess.restype = wintypes.HANDLE
 kernel32.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
 kernel32.TerminateProcess.restype = wintypes.BOOL
+kernel32.QueryFullProcessImageNameW.argtypes = [
+    wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD)
+]
+kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
 
 advapi32.OpenSCManagerW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD]
 advapi32.OpenSCManagerW.restype = wintypes.HANDLE
@@ -222,6 +227,7 @@ def decode_console(raw: bytes) -> str:
 
 TH32CS_SNAPPROCESS = 0x00000002
 PROCESS_TERMINATE = 0x0001
+PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 
 
 def iter_processes() -> Iterator[tuple[int, str]]:
@@ -262,6 +268,103 @@ def kill_processes(name: str) -> int:
         finally:
             kernel32.CloseHandle(handle)
     return killed
+
+
+def process_path(pid: int) -> str:
+    """Полный путь к исполняемому файлу процесса. Пусто, если недоступен."""
+    handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    if not handle:
+        return ""
+    try:
+        size = wintypes.DWORD(MAX_PATH * 2)
+        buffer = ctypes.create_unicode_buffer(size.value)
+        if kernel32.QueryFullProcessImageNameW(handle, 0, buffer, ctypes.byref(size)):
+            return buffer.value
+        return ""
+    finally:
+        kernel32.CloseHandle(handle)
+
+
+def find_processes_by_path(name: str, executable: str) -> list[int]:
+    """Только те процессы с этим именем, что запущены из указанного файла.
+
+    Нужно, чтобы не трогать одноимённые процессы чужих программ: sing-box,
+    например, запускают и другие VPN-клиенты.
+    """
+    target = os.path.normcase(os.path.abspath(executable))
+    result: list[int] = []
+    for pid in find_processes(name):
+        path = process_path(pid)
+        if path and os.path.normcase(os.path.abspath(path)) == target:
+            result.append(pid)
+    return result
+
+
+def kill_processes_by_path(name: str, executable: str) -> int:
+    killed = 0
+    for pid in find_processes_by_path(name, executable):
+        handle = kernel32.OpenProcess(PROCESS_TERMINATE, False, pid)
+        if not handle:
+            continue
+        try:
+            if kernel32.TerminateProcess(handle, 1):
+                killed += 1
+        finally:
+            kernel32.CloseHandle(handle)
+    return killed
+
+
+def foreign_processes(name: str, executable: str) -> list[int]:
+    """Одноимённые процессы, запущенные не нами."""
+    ours = set(find_processes_by_path(name, executable))
+    return [pid for pid in find_processes(name) if pid not in ours]
+
+
+ENUM_WINDOWS_PROC = ctypes.WINFUNCTYPE(
+    wintypes.BOOL, wintypes.HWND, wintypes.LPARAM
+)
+user32.EnumWindows.argtypes = [ENUM_WINDOWS_PROC, wintypes.LPARAM]
+user32.EnumWindows.restype = wintypes.BOOL
+user32.IsWindowVisible.argtypes = [wintypes.HWND]
+user32.IsWindowVisible.restype = wintypes.BOOL
+user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
+user32.GetWindowTextLengthW.restype = ctypes.c_int
+user32.GetWindowThreadProcessId.argtypes = [
+    wintypes.HWND, ctypes.POINTER(wintypes.DWORD)
+]
+user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+user32.GetWindow.argtypes = [wintypes.HWND, wintypes.UINT]
+user32.GetWindow.restype = wintypes.HWND
+
+GW_OWNER = 4
+
+
+def windowed_pids() -> set[int]:
+    """Процессы, у которых есть видимое окно верхнего уровня.
+
+    По этому признаку отличаем программы пользователя от фоновых служб:
+    в списке маршрутов нужны первые.
+    """
+    found: set[int] = set()
+
+    def callback(hwnd, _lparam):
+        if not user32.IsWindowVisible(hwnd):
+            return True
+        if user32.GetWindow(hwnd, GW_OWNER):
+            return True  # дочернее окно, а не главное
+        if user32.GetWindowTextLengthW(hwnd) <= 0:
+            return True
+        pid = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        if pid.value:
+            found.add(int(pid.value))
+        return True
+
+    try:
+        user32.EnumWindows(ENUM_WINDOWS_PROC(callback), 0)
+    except OSError:
+        return set()
+    return found
 
 
 # =========================================================================

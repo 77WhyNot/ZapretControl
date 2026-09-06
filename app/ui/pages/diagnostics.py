@@ -18,6 +18,7 @@ from app.core import logs, paths
 from app.ui.context import AppContext
 from app.ui.pages.base import Page, StatusIcon
 from app.ui.widgets import (
+    clear_layout,
     Badge,
     Button,
     Card,
@@ -33,8 +34,10 @@ class CheckRow(QWidget):
     """Результат одной проверки с кнопкой исправления."""
 
     def __init__(self, context: AppContext, result: diag.CheckResult,
-                 page: "DiagnosticsPage") -> None:
-        super().__init__()
+                 page: "DiagnosticsPage",
+                 parent: QWidget | None = None) -> None:
+        # Без родителя виджет до вставки в компоновку считается окном.
+        super().__init__(parent)
         self.context = context
         self.result = result
         self.page = page
@@ -105,16 +108,19 @@ class CheckRow(QWidget):
 
 
 class DiagnosticsPage(Page):
-    def __init__(self, context: AppContext) -> None:
+    def __init__(self, context: AppContext,
+                 parent: QWidget | None = None) -> None:
         super().__init__(
             context,
             "Диагностика",
             "Проверяем всё, что обычно мешает обходу работать: службы, "
             "драйверы, конкурирующие программы и настройки сети.",
+            parent,
         )
         self._ran_once = False
         self._build_summary()
         self._build_results()
+        self._build_tools()
         self._build_log()
         self.apply_theme()
 
@@ -153,8 +159,8 @@ class DiagnosticsPage(Page):
         self.results_card = Card(padding=6, spacing=0)
         self.results_layout = self.results_card.body()
         # Пустая карточка выглядит как артефакт вёрстки — показываем по результату.
-        self.results_card.setVisible(False)
         self.body.addWidget(self.results_card)
+        self.results_card.setVisible(False)
 
     def _build_log(self) -> None:
         card = Card(padding=20, spacing=12)
@@ -208,11 +214,7 @@ class DiagnosticsPage(Page):
         self.spinner.stop()
         self._ran_once = True
 
-        while self.results_layout.count():
-            item = self.results_layout.takeAt(0)
-            widget = item.widget()
-            if widget is not None:
-                widget.deleteLater()
+        clear_layout(self.results_layout)
 
         ordered = sorted(
             results,
@@ -220,8 +222,10 @@ class DiagnosticsPage(Page):
         )
         for index, result in enumerate(ordered):
             if index:
-                self.results_layout.addWidget(Divider())
-            self.results_layout.addWidget(CheckRow(self.context, result, self))
+                self.results_layout.addWidget(Divider(self.results_card))
+            self.results_layout.addWidget(
+                CheckRow(self.context, result, self, self.results_card)
+            )
         self.results_card.setVisible(bool(ordered))
 
         passed, warnings, errors = diag.summarize(results)
@@ -241,6 +245,139 @@ class DiagnosticsPage(Page):
             )
         else:
             self.summary_text.setText("Всё в порядке — система готова к обходу.")
+
+    # --- инструменты -----------------------------------------------------
+
+    def _build_tools(self) -> None:
+        card = Card(padding=20, spacing=13)
+
+        header = QHBoxLayout()
+        header.setSpacing(10)
+        header.addWidget(section_label("Инструменты"))
+        header.addStretch(1)
+        self.tools_spinner = Spinner(16, self.context.color("accent"))
+        header.addWidget(self.tools_spinner)
+        card.add_layout(header)
+
+        card.add(faint_label(
+            "Discord держит адреса голосовых серверов в кэше и после смены "
+            "стратегии продолжает стучаться по старым. Перезапуск с очисткой "
+            "чаще всего и чинит неработающий голос."
+        ))
+
+        row = QHBoxLayout()
+        row.setSpacing(10)
+        self.btn_discord_restart = Button("Перезапустить Discord", variant="soft")
+        self.btn_discord_restart.clicked.connect(
+            lambda: self._run_tool(diag.restart_discord_clean,
+                                   self.btn_discord_restart)
+        )
+        row.addWidget(self.btn_discord_restart)
+
+        self.btn_discord_cache = Button("Только очистить кэш")
+        self.btn_discord_cache.clicked.connect(
+            lambda: self._run_tool(diag.clear_discord_cache, self.btn_discord_cache)
+        )
+        row.addWidget(self.btn_discord_cache)
+
+        self.btn_discord_start = Button("Запустить Discord", variant="ghost")
+        self.btn_discord_start.clicked.connect(
+            lambda: self._run_tool(diag.launch_discord, self.btn_discord_start)
+        )
+        row.addWidget(self.btn_discord_start)
+        row.addStretch(1)
+        card.add_layout(row)
+
+        card.add(Divider())
+
+        self.clients_label = faint_label("")
+        card.add(self.clients_label)
+
+        clients_row = QHBoxLayout()
+        clients_row.setSpacing(10)
+        self.btn_restore_adapters = Button("Починить сетевые адаптеры",
+                                           variant="soft")
+        self.btn_restore_adapters.clicked.connect(
+            lambda: self._run_tool(self._restore_adapters, self.btn_restore_adapters)
+        )
+        clients_row.addWidget(self.btn_restore_adapters)
+
+        self.btn_flush_dns = Button("Сбросить кэш DNS", variant="ghost")
+        self.btn_flush_dns.clicked.connect(
+            lambda: self._run_tool(self._flush_dns, self.btn_flush_dns)
+        )
+        clients_row.addWidget(self.btn_flush_dns)
+        clients_row.addStretch(1)
+        card.add_layout(clients_row)
+
+        self.body.addWidget(card)
+        self._refresh_clients()
+
+    def _restore_adapters(self) -> str:
+        """Включить обратно выключённые туннельные адаптеры.
+
+        Пригодится тем, кто ставил версии 2.x: они умели временно отключать
+        адаптер чужого VPN-клиента и при падении не включали его обратно.
+        """
+        from app.core import netadapters
+
+        return netadapters.enable_all_tunnels()
+
+    def _flush_dns(self) -> str:
+        from app.core import dnsctl
+
+        return ("Кэш DNS очищен." if dnsctl.flush_cache()
+                else "Не удалось очистить кэш DNS.")
+
+    def _refresh_clients(self) -> None:
+        """Показать, что происходит с чужими туннелями. Ничего не трогаем.
+
+        Список выключенных адаптеров спрашивается у PowerShell и занимает
+        около секунды — в потоке интерфейса это заметная заминка, поэтому
+        считаем в фоне, а надпись обновляем по готовности.
+        """
+        from app.core import netadapters
+
+        self.clients_label.setText("Смотрим сетевые адаптеры…")
+
+        def job():
+            return netadapters.tunnel_names(), netadapters.disabled_tunnels()
+
+        worker = Worker(self)
+        worker.finished.connect(lambda payload: self._show_clients(*payload))
+        worker.failed.connect(lambda message: self.clients_label.setText(message))
+        worker.run(job)
+        self._clients_worker = worker
+
+    def _show_clients(self, live: list[str], broken: list[str]) -> None:
+        if live:
+            text = (f"Работает сторонний VPN: {', '.join(live)}. "
+                    "Программа его не трогает — ни адаптер, ни процесс. "
+                    "Обход DPI при живом туннеле лучше выключить.")
+        else:
+            text = "Сторонних VPN-туннелей сейчас не поднято."
+        if broken:
+            text += (f" Есть выключенные туннельные адаптеры: {', '.join(broken)}. "
+                     "Если ваш VPN-клиент не поднимается, кнопка ниже включит "
+                     "их обратно.")
+        self.clients_label.setText(text)
+
+    def _run_tool(self, function, button) -> None:
+        button.setEnabled(False)
+        self.tools_spinner.start()
+
+        worker = Worker(self)
+        worker.finished.connect(lambda result: self._tool_done(str(result), button))
+        worker.failed.connect(lambda message: self._tool_done(message, button, True))
+        worker.run(function)
+        self._tool_worker = worker
+
+    def _tool_done(self, message: str, button, error: bool = False) -> None:
+        button.setEnabled(True)
+        self.tools_spinner.stop()
+        (self.context.error if error else self.context.ok)(message)
+        self._refresh_clients()
+
 
     # --- журнал ----------------------------------------------------------
 
@@ -263,6 +400,7 @@ class DiagnosticsPage(Page):
     # --- страница --------------------------------------------------------
 
     def on_activate(self) -> None:
+        self._refresh_clients()
         from app.core.config import config
 
         if not self._ran_once and config.get("diagnostics_autorun", True):
@@ -270,3 +408,4 @@ class DiagnosticsPage(Page):
 
     def apply_theme(self) -> None:
         self.spinner.set_color(self.context.color("accent"))
+        self.tools_spinner.set_color(self.context.color("accent"))

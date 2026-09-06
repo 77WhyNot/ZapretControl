@@ -23,7 +23,7 @@ AppSupportURL={#AppUrl}/issues
 AppUpdatesURL={#AppUrl}/releases
 #endif
 VersionInfoVersion={#AppVersion}
-VersionInfoDescription={#AppName} — обход блокировок
+VersionInfoDescription={#AppName} — обход блокировок и Smart DNS
 
 DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}

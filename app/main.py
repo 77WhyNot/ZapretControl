@@ -6,7 +6,7 @@ import ctypes
 import sys
 import traceback
 
-from PySide6.QtCore import QLibraryInfo, Qt, QTranslator
+from PySide6.QtCore import QLibraryInfo, Qt, QTimer, QTranslator
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QMessageBox
 
@@ -140,21 +140,57 @@ def main() -> int:
         return 0
 
     logs.info(f"Запуск {APP_NAME} {APP_VERSION} (admin={winapi.is_admin()})")
+
+    start_hidden = "--tray" in sys.argv and config.get("start_minimized", False)
+
+    from app.ui import theme
+    from app.ui.splash import Splash
+
+    tokens = theme.build_tokens(str(config.get("theme")), str(config.get("accent")))
+    splash = None if start_hidden else Splash(tokens)
+    if splash is not None:
+        splash.show()
+        application.processEvents()
+
+    def step(message: str, value: float) -> None:
+        if splash is not None:
+            splash.step(message, value)
+
+    # Версии 2.x умели временно отключать чужой сетевой адаптер и при
+    # падении оставляли его выключенным. Возвращаем до всего остального,
+    # иначе у человека не поднимется его VPN-клиент.
+    try:
+        from app.core.netadapters import restore_paused_adapters
+
+        restored = restore_paused_adapters()
+        if restored:
+            logs.info("Возвращены сетевые адаптеры: " + ", ".join(restored))
+    except Exception as exc:  # noqa: BLE001
+        logs.warn(f"Не удалось вернуть сетевые адаптеры: {exc}")
+
+    step("Проверка файлов ядра…", 0.15)
     if not paths.core_is_valid():
         logs.warn(f"Ядро zapret не найдено в {paths.core_dir()}")
     lists.ensure_user_lists()
     updater.uninstall_leftovers()
 
+    step("Сборка интерфейса…", 0.45)
     from app.ui.window import MainWindow
 
-    window = MainWindow()
+    window = MainWindow(on_progress=step)
+    # Собираем все страницы сразу: иначе первое открытие каждой вкладки
+    # заметно подвисает, а недостроенные виджеты мигают отдельными окнами.
+    window.build_all_pages()
+
+    step("Готово", 1.0)
     server = _start_ipc_server(window)
     application.setProperty("ipc_server", server)
 
-    start_hidden = "--tray" in sys.argv and config.get("start_minimized", False)
-    if start_hidden:
-        window.hide()
-    else:
+    if splash is not None:
+        # Небольшая пауза, иначе полоса не успевает доехать и это заметно.
+        QTimer.singleShot(220, splash.finish)
+        QTimer.singleShot(240, window.show)
+    elif not start_hidden:
         window.show()
 
     return application.exec()

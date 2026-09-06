@@ -19,8 +19,11 @@ from app.ui.widgets import Button, IconLabel
 class Page(QWidget):
     """Общий каркас страницы."""
 
-    def __init__(self, context: AppContext, title: str, subtitle: str = "") -> None:
-        super().__init__()
+    def __init__(self, context: AppContext, title: str, subtitle: str = "",
+                 parent: QWidget | None = None) -> None:
+        # Родитель обязателен с самого начала: виджет без родителя Qt
+        # считает окном и успевает мигнуть им на экране.
+        super().__init__(parent)
         self.context = context
 
         outer = QVBoxLayout(self)
@@ -39,8 +42,10 @@ class Page(QWidget):
         self.subtitle_label = QLabel(subtitle)
         self.subtitle_label.setObjectName("PageSubtitle")
         self.subtitle_label.setWordWrap(True)
-        self.subtitle_label.setVisible(bool(subtitle))
+        # Сначала в компоновку, потом видимость: setVisible на виджете
+        # без родителя заставляет Qt показать его отдельным окном.
         header_layout.addWidget(self.subtitle_label)
+        self.subtitle_label.setVisible(bool(subtitle))
 
         self.header_extra = QHBoxLayout()
         self.header_extra.setContentsMargins(0, 6, 0, 0)
@@ -103,9 +108,12 @@ class Banner(QFrame):
         self.label.setWordWrap(True)
         layout.addWidget(self.label, 1)
 
-        self.action = Button(action_text, variant="soft")
-        self.action.setVisible(bool(action_text))
+        # Сначала родитель и компоновка, только потом видимость: setVisible
+        # на виджете без родителя Qt понимает как «показать отдельным окном»,
+        # и на экране мигает пустая кнопка.
+        self.action = Button(action_text, variant="soft", parent=self)
         layout.addWidget(self.action, 0, Qt.AlignmentFlag.AlignVCenter)
+        self.action.setVisible(bool(action_text))
 
         context.theme_changed.connect(self.apply_theme)
         self.apply_theme()

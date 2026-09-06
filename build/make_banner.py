@@ -17,9 +17,9 @@ sys.path.insert(0, str(ROOT / "build"))
 from make_icon import build_icon  # noqa: E402
 
 SIZE = (1280, 420)
-TOP = (18, 10, 16)
-BOTTOM = (92, 12, 38)
-RUBY = (196, 30, 74)
+TOP = (16, 8, 14)
+BOTTOM = (96, 12, 40)
+RUBY = (212, 34, 80)
 
 TARGET = ROOT / "docs" / "banner.png"
 
@@ -83,13 +83,13 @@ def build() -> Image.Image:
     draw.text((left, 122), "Zapret Control", font=title_font, fill=(255, 255, 255))
     draw.text(
         (left, 232),
-        "Обход блокировок Discord и YouTube",
-        font=sub_font, fill=(238, 214, 222),
+        "Обход блокировок Discord, YouTube и Telegram — в одном окне",
+        font=sub_font, fill=(240, 212, 220),
     )
     draw.text(
         (left, 286),
-        "21 стратегия · автоподбор · диагностика · автообновление",
-        font=small_font, fill=(214, 168, 184),
+        "zapret · Smart DNS для Xbox · Telegram · автообновление",
+        font=small_font, fill=(206, 158, 174),
     )
     return canvas.convert("RGB")
 

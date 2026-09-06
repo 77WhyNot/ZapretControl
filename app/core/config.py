@@ -12,8 +12,9 @@ from app.core.constants import CONFIG_VERSION
 DEFAULTS: dict[str, Any] = {
     "config_version": CONFIG_VERSION,
     # Внешний вид
-    "theme": "light",             # light | dark | midnight | system
-    "accent": "ruby",             # см. ui/theme.py
+    "theme": "light",             # см. ui/theme.py
+    "accent": "ruby",
+    "last_dark_theme": "rails",   # куда возвращает кнопка «тёмная» в заголовке
     # Поведение
     "run_mode": "service",        # service | process
     "last_strategy": "general",
@@ -25,7 +26,7 @@ DEFAULTS: dict[str, Any] = {
     # Обновления
     "check_core_updates": True,
     "check_app_updates": True,
-    "auto_install_core_updates": False,
+    "auto_install_core_updates": True,   # ядро ставится само, обход коротко перезапускается
     "update_check_interval_hours": 12,
     "last_update_check": 0,
     "skipped_core_version": "",
@@ -35,6 +36,12 @@ DEFAULTS: dict[str, Any] = {
     "custom_proxy": "",
     "preferred_mirror": "",       # запоминаем зеркало, которое сработало
     "warn_about_vpn": True,
+    # Telegram
+    "telegram_bypass": False,
+    "telegram_mode": "split",
+    # Сосуществование со сторонним VPN (Happ, Hiddify, WireGuard и др.)
+    "pause_zapret_with_vpn": True,   # снимать обход, пока поднят чужой туннель
+    "zapret_paused_by_vpn": False,   # обход снят нами — вернуть после VPN
     # Прочее
     "first_run": True,
     "window_geometry": "",
@@ -92,6 +99,37 @@ class Config:
             for key, value in raw.items():
                 if key in DEFAULTS:
                     self._data[key] = value
+
+    def raw(self) -> dict[str, Any]:
+        """Файл настроек как есть, вместе с ключами прошлых версий.
+
+        ``load`` оставляет только известные ключи, поэтому списки от старых
+        версий (например, выключенные ими сетевые адаптеры) сюда не попадают.
+        Чтобы их починить, файл приходится читать напрямую.
+        """
+        path = paths.config_path()
+        if not path.exists():
+            return {}
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        return raw if isinstance(raw, dict) else {}
+
+    def drop_raw_key(self, key: str) -> None:
+        """Убрать из файла ключ, оставшийся от прошлой версии."""
+        raw = self.raw()
+        if key not in raw:
+            return
+        path = paths.config_path()
+        del raw[key]
+        try:
+            tmp = path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(raw, ensure_ascii=False, indent=2),
+                           encoding="utf-8")
+            tmp.replace(path)
+        except OSError:
+            pass
 
     def save(self) -> None:
         path = paths.config_path()
