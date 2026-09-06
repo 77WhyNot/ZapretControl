@@ -13,7 +13,8 @@ DEFAULTS: dict[str, Any] = {
     "config_version": CONFIG_VERSION,
     # Внешний вид
     "theme": "light",             # см. ui/theme.py
-    "accent": "ruby",
+    "accent": "sapphire",
+    "accent_migrated_blue": False,  # разовый перевод старого рубина на синий
     "last_dark_theme": "rails",   # куда возвращает кнопка «тёмная» в заголовке
     # Поведение
     "run_mode": "service",        # service | process
@@ -103,6 +104,20 @@ class Config:
             for key, value in raw.items():
                 if key in DEFAULTS:
                     self._data[key] = value
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """Разовые правки уже сохранённых настроек."""
+        changed = False
+        # Основной цвет программы стал синим. Рубин был цветом по умолчанию,
+        # который никто не выбирал осознанно, — переводим его один раз.
+        if not self._data.get("accent_migrated_blue"):
+            if self._data.get("accent") == "ruby":
+                self._data["accent"] = "sapphire"
+            self._data["accent_migrated_blue"] = True
+            changed = True
+        if changed:
+            self.save()
 
     def raw(self) -> dict[str, Any]:
         """Файл настроек как есть, вместе с ключами прошлых версий.

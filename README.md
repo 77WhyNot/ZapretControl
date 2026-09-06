@@ -2,8 +2,8 @@
 
 <img src="docs/banner.png" alt="Zapret Control">
 
-[![Релиз](https://img.shields.io/github/v/release/77WhyNot/ZapretControl?style=for-the-badge&label=версия&color=C41E4A)](https://github.com/77WhyNot/ZapretControl/releases/latest)
-[![Загрузки](https://img.shields.io/github/downloads/77WhyNot/ZapretControl/total?style=for-the-badge&label=загрузок&color=C41E4A)](https://github.com/77WhyNot/ZapretControl/releases)
+[![Релиз](https://img.shields.io/github/v/release/77WhyNot/ZapretControl?style=for-the-badge&label=версия&color=2563EB)](https://github.com/77WhyNot/ZapretControl/releases/latest)
+[![Загрузки](https://img.shields.io/github/downloads/77WhyNot/ZapretControl/total?style=for-the-badge&label=загрузок&color=2563EB)](https://github.com/77WhyNot/ZapretControl/releases)
 [![Windows](https://img.shields.io/badge/Windows-10%20и%2011-0078D4?style=for-the-badge)](https://github.com/77WhyNot/ZapretControl/releases/latest)
 [![Лицензия](https://img.shields.io/badge/лицензия-проприетарная-555?style=for-the-badge)](LICENSE)
 
@@ -52,7 +52,7 @@ Zapret Control убирает всё это. На главном экране т
 | **Диагностика** | 16 проверок: драйвер WinDivert, служба BFE, TCP timestamps, конфликты с GoodbyeDPI, Killer, Check Point, AdGuard, SmartByte, чужие туннели, шифрованный DNS, hosts. У большинства проблем есть кнопка «Исправить». Плюс перезапуск Discord с очисткой кэша. |
 | **Проверка доступности** | Discord, YouTube, Google, ChatGPT, Claude, Gemini — за один клик видно, что открывается, а что нет. |
 | **Работает без GitHub** | Если GitHub заблокирован, программа сама переберёт зеркала (ghproxy, gh-proxy, ghfast, gitmirror, jsDelivr) или пойдёт через ваш прокси. |
-| **Оформление** | 5 тем и 8 акцентных цветов, двухтоновые иконки, плавные переходы страниц и раскрывающихся разделов. Светлая ↔ тёмная — кнопкой прямо в заголовке окна. По умолчанию светлая с рубиновым акцентом. |
+| **Оформление** | 5 тем и 8 акцентных цветов, двухтоновые иконки, плавные переходы страниц и раскрывающихся разделов. Светлая ↔ тёмная — кнопкой прямо в заголовке окна. По умолчанию светлая с синим акцентом. |
 | **Трей** | Сворачивается к часам, включается и выключается из контекстного меню, умеет стартовать вместе с Windows без окна UAC. |
 
 <div align="center">

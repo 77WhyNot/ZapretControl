@@ -165,7 +165,7 @@ class Switch(QWidget):
         super().__init__(parent)
         self._checked = checked
         self._offset = 1.0 if checked else 0.0
-        self._track_on = QColor("#C41E4A")
+        self._track_on = QColor("#2563EB")
         self._track_off = QColor("#CDD4DE")
         self._knob = QColor("#FFFFFF")
         self.setFixedSize(42, 24)
@@ -343,7 +343,7 @@ class Toast(QFrame):
 class Spinner(QWidget):
     """Круговой индикатор занятости."""
 
-    def __init__(self, size: int = 18, color: str = "#C41E4A",
+    def __init__(self, size: int = 18, color: str = "#2563EB",
                  parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._angle = 0

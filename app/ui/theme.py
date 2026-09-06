@@ -209,7 +209,7 @@ def resolve_theme_key(key: str) -> str:
 
 def build_tokens(theme_key: str, accent_key: str) -> dict[str, str]:
     theme = THEME_BY_KEY[resolve_theme_key(theme_key)]
-    accent = ACCENT_BY_KEY.get(accent_key, ACCENT_BY_KEY["ruby"])
+    accent = ACCENT_BY_KEY.get(accent_key, ACCENT_BY_KEY["sapphire"])
 
     tokens = dict(theme.colors)
     tokens.update({
@@ -230,9 +230,11 @@ def build_tokens(theme_key: str, accent_key: str) -> dict[str, str]:
     # Цвета маршрутов — это не украшение, а способ читать состояние:
     # один и тот же цвет означает один и тот же путь трафика во всей программе.
     tokens["lane_direct"] = "#7C8AA0" if theme.dark else "#68758A"
-    tokens["lane_zapret"] = "#E63862" if theme.dark else "#C41E4A"
-    tokens["lane_dns"] = "#22C6D8" if theme.dark else "#0E93A6"
-    tokens["lane_tg"] = "#3BA0E6" if theme.dark else "#1F7FCC"
+    # Обход — главный инструмент, он носит цвет программы (акцент).
+    # Остальные — своя холодная гамма: Telegram — небесный, DNS — бирюза.
+    tokens["lane_zapret"] = tokens["accent"]
+    tokens["lane_dns"] = "#2DD4BF" if theme.dark else "#0F9D8A"
+    tokens["lane_tg"] = "#38BDF8" if theme.dark else "#1A9BD7"
     # Чужой туннель — намеренно приглушённый: это не наш инструмент,
     # мы им не управляем и только сообщаем, что он поднят.
     tokens["lane_vpn"] = "#8B7BD8" if theme.dark else "#6A57C4"
