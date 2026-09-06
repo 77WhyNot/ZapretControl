@@ -8,6 +8,8 @@ from PySide6.QtWidgets import QWidget, QGridLayout, QHBoxLayout, QLabel, QVBoxLa
 
 from app.core import paths, strategies
 from app.core.constants import (
+    APP_AUTHOR,
+    APP_AUTHOR_FULL,
     APP_NAME,
     APP_REPO,
     APP_VERSION,
@@ -57,6 +59,9 @@ class AboutPage(Page):
             "блокировок по методу дефрагментации TLS. Всё, что раньше "
             "делалось через .bat-файлы и меню в консоли, собрано в одном окне."
         ))
+        author = QLabel(f"Автор — {APP_AUTHOR_FULL}")
+        author.setStyleSheet("font-weight: 600; margin-top: 4px;")
+        text_box.addWidget(author)
         top.addLayout(text_box, 1)
         card.add_layout(top)
 
@@ -80,6 +85,12 @@ class AboutPage(Page):
             lambda: QDesktopServices.openUrl(QUrl(UPSTREAM_HOME))
         )
         links.addWidget(btn_upstream)
+
+        btn_author = Button(f"GitHub автора — {APP_AUTHOR}", variant="ghost")
+        btn_author.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl("https://github.com/77WhyNot"))
+        )
+        links.addWidget(btn_author)
 
         if APP_REPO and "/" in APP_REPO:
             btn_app = Button("Репозиторий приложения", variant="ghost")

@@ -90,8 +90,14 @@ def _selftest() -> int:
     print(f"проверок: {len(diagnostics.ALL_CHECKS)}")
 
     # Прокси Telegram: в собранном виде должны найтись и вшитое ядро, и AES.
+    # Порт берём свободный: обычный 1443 может держать установленная копия.
+    import socket
+
     from app.core import tgws
 
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        config.set("tg_ws_port", probe.getsockname()[1], save=False)
     tgws.tgws_engine.start()
     print(f"прокси Telegram: {'ок' if tgws.tgws_engine.is_running() else 'НЕ ЗАПУСТИЛСЯ'}")
     tgws.tgws_engine.stop()
